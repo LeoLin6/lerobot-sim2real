@@ -5,8 +5,8 @@
       "target": [0.185, -0.15, 0.0]
   },
   "greenscreen_overlay_path": "greenscreen.png",
-  "spawn_box_pos": [0.3, 0.05],
-  "spawn_box_half_size": 0.1,
+  "spawn_box_pos": [0.225, 0],
+  "spawn_box_half_size": 0.05,
   "domain_randomization_config": {
     "robot_color": [0.01, 0.01, 0.01]
   }

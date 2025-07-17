@@ -5,6 +5,7 @@ from typing import Optional
 from mani_skill.utils.wrappers.record import RecordEpisode
 import tyro
 
+from lego_minifigure_env import LegoMinifigurePickPlaceEnv
 
 @dataclass
 class Args:
