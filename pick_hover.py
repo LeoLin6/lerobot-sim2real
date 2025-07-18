@@ -464,7 +464,7 @@ class LegoMinifigurePickPlaceEnv(BaseDigitalTwinEnv):
         placement_reward = 1 - torch.tanh(5 * minifigure_to_fighter_dist)
         
         # Combine rewards: prioritize grasping, then placement
-        reward = reaching_reward + info["is_grasped"] * 2 + placement_reward * info["is_grasped"]
+        reward = reaching_reward + info["is_grasped"] * 2 + placement_reward * info["is_grasped"] *5
         reward -= 2 * info["touching_table"].float()
         return reward
 
