@@ -21,6 +21,18 @@ from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 
 
+'''
+seed=10
+python lerobot_sim2real/scripts/train_ppo_rgb.py --env-id="LegoMinifigurePickPlace-v2" --env-kwargs-json-path=env_config.json \
+  --ppo.seed=${seed} \
+  --ppo.num_envs=1024 --ppo.num-steps=16 --ppo.update_epochs=8 --ppo.num_minibatches=32 \
+  --ppo.total_timesteps=100_000_000 --ppo.gamma=0.9 \
+  --ppo.num_eval_envs=16 --ppo.num-eval-steps=100 --ppo.no-partial-reset \
+  --ppo.exp-name="ppo-LegoMinifigurePickPlace-v2-rgb-${seed}" \
+  --ppo.track --ppo.wandb_project_name "SO100-ManiSkill"
+
+'''
+
 @dataclass
 class LegoMinifigureDomainRandomizationConfig:
     initial_qpos_noise_scale: float = 0.02
@@ -388,12 +400,10 @@ class LegoMinifigurePickPlaceEnv(BaseDigitalTwinEnv):
 
     def evaluate(self):
         tcp_to_minifigure_dist = torch.linalg.norm(
-            self.minifigure.pose.p - self.agent.tcp_pos,
-            axis=-1,
+            self.minifigure.pose.p - self.agent.tcp_pose.p, axis=1
         )
         tcp_to_fighter_dist = torch.linalg.norm(
-            self.fighter.pose.p - self.agent.tcp_pos,
-            axis=-1,
+            self.fighter.pose.p - self.agent.tcp_pose.p, axis=1
         )
         reached_minifigure = tcp_to_minifigure_dist < 0.03
         reached_fighter = tcp_to_fighter_dist < 0.03
@@ -411,11 +421,10 @@ class LegoMinifigurePickPlaceEnv(BaseDigitalTwinEnv):
         fighter_lifted = self.fighter.pose.p[..., -1] >= 0.05
 
         # Check if minifigure is inside the fighter (close to fighter position)
-        minifigure_to_fighter_dist = torch.linalg.norm(
-            self.minifigure.pose.p - self.fighter.pose.p,
-            axis=-1,
+        minifigure_to_fighter_dist_xy = torch.linalg.norm(
+            self.minifigure.pose.p[..., :2] - self.fighter.pose.p[..., :2], axis=1
         )
-        minifigure_inside_fighter = minifigure_to_fighter_dist < 0.05  # Adjust threshold as needed
+        minifigure_inside_fighter = minifigure_to_fighter_dist_xy < 0.05  # Adjust threshold as needed
 
         # Success: minifigure is inside the fighter
         success = minifigure_inside_fighter & minifigure_lifted
@@ -438,11 +447,10 @@ class LegoMinifigurePickPlaceEnv(BaseDigitalTwinEnv):
             "is_grasped": is_grasped,
             "reached_minifigure": reached_minifigure,
             "reached_fighter": reached_fighter,
-            "distance_to_rest_qpos": distance_to_rest_qpos,
+            "tcp_to_minifigure_dist": tcp_to_minifigure_dist,
             "touching_table": touching_table,
             "minifigure_lifted": minifigure_lifted,
-            "fighter_lifted": fighter_lifted,
-            "minifigure_inside_fighter": minifigure_inside_fighter,
+            "minifigure_to_fighter_dist_xy": minifigure_to_fighter_dist_xy,
             "success": success,
         }
 
@@ -453,22 +461,22 @@ class LegoMinifigurePickPlaceEnv(BaseDigitalTwinEnv):
         tcp_to_fighter_dist = torch.linalg.norm(
             self.fighter.pose.p - self.agent.tcp_pose.p, axis=1
         )
-        minifigure_to_fighter_dist = torch.linalg.norm(
-            self.minifigure.pose.p - self.fighter.pose.p, axis=1
+        minifigure_to_fighter_dist_xy = torch.linalg.norm(
+            self.minifigure.pose.p[..., :2] - self.fighter.pose.p[..., :2], axis=1
         )
         
         # Reward for being close to minifigure when not grasped
         reaching_reward = 1 - torch.tanh(5 * tcp_to_minifigure_dist)
         
         # Reward for placing minifigure inside fighter
-        placement_reward = 1 - torch.tanh(5 * minifigure_to_fighter_dist)
+        placement_reward = 1 - torch.tanh(5 * minifigure_to_fighter_dist_xy)
         
-        # Combine rewards: prioritize grasping, then placement
-        reward = reaching_reward + info["is_grasped"] * 2 + placement_reward * info["is_grasped"] *5
+        # Combine rewards: priorpip install torchitize grasping, then placement
+        reward = reaching_reward + info["is_grasped"] * 2 + placement_reward * info["is_grasped"] *10
         reward -= 2 * info["touching_table"].float()
         return reward
 
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
-        return self.compute_dense_reward(obs=obs, action=action, info=info) / 3 
+        return self.compute_dense_reward(obs=obs, action=action, info=info) / 5
